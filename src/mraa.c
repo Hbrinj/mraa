@@ -41,6 +41,8 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdbool.h>
+#include <errno.h>
+#include <ctype.h>
 
 #if defined(IMRAA)
 #include <json-c/json.h>
@@ -52,6 +54,12 @@
 #include "firmata/firmata_mraa.h"
 #include "gpio.h"
 #include "version.h"
+#include "i2c.h"
+#include "pwm.h"
+#include "aio.h"
+#include "spi.h"
+#include "uart.h"
+
 
 #define IIO_DEVICE_WILDCARD "iio:device*"
 mraa_board_t* plat = NULL;
@@ -1073,3 +1081,167 @@ mraa_add_from_lockfile(const char* imraa_lock_file)
     return ret;
 }
 #endif
+
+void
+mraa_to_upper(char* s)
+{
+    char* t = s;
+    for(;*t;++t)
+        *t = toupper(*t);
+}
+
+unsigned int
+mraa_atoi(char* s, int* success)
+{
+    *success = 0;
+    char* end;
+    unsigned long val = strtol(s, &end, 10);
+    if(*end != '\0' || errno == ERANGE || end == s)
+    {
+        *success = 0;
+        return 0;
+    }
+    *success = 1;
+    return (unsigned int) val;
+}
+
+unsigned int
+mraa_init_io_helper(char ** pStr, int* success,const char* delim){
+    char* token;
+    token = strsep(pStr, delim);
+    //check to see if empty string returned
+    if(token == NULL) {
+        success = 0;
+        return 0;
+    }
+    return mraa_atoi(token, success);
+}
+
+void *
+mraa_init_io(const char* _desc)
+{
+    const char* delim = "-";
+    int length = 0, 
+        i = 0,
+        descLen = 0,
+        typeLen = 0,
+        raw = 0,
+        success = 0;
+    unsigned int pin = 0,
+                  id;
+    char desc[256] = {0},
+         type[8] = {0};
+    char* token = 0, 
+        * end = 0, 
+        * pStr = 0;
+    
+    //get length of the description
+    descLen = strlen(_desc);
+    //is it bigger than what we expect?
+    //is it NULL or empty
+    if( descLen + 1 > 255 ||  _desc == NULL || descLen == 0)
+        return (void*) NULL;
+    
+    strncpy(desc, _desc, descLen);
+    pStr = desc;
+    token = strsep(&pStr, delim);
+    
+    //check to see if it's the max possible type length
+    length = strlen(token);
+    if(length +1 > 5)
+        return (void*) NULL;
+    strncpy(type, token, length);
+    mraa_to_upper(type);
+    
+    //check to see if its the pin number or not
+
+    token = strsep(&pStr, delim);
+    //check to see if empty string returned
+    if(token == NULL) {
+        return (void*) NULL;
+    }
+    pin = mraa_atoi(token,&success);
+    if(!success) {
+        //didn't get to convert, check to see if it's the string 'RAW'
+        mraa_to_upper(token);
+        if(strncmp(token, "RAW", 3))
+            return (void*) NULL;
+        //its a raw io req
+        raw = 1;
+    }
+
+    //if we're not initialising a raw value we need to make sure there is no more input after the pin number
+    if(!raw && pStr != NULL) {
+            return (void*) NULL;
+    }
+
+    if(strncmp(type, "GPIO", 4) == 0) {
+        if(raw) {
+            pin = mraa_init_io_helper(&pStr, &success, delim);
+            if(success){
+                return (void*)mraa_gpio_init_raw(pin);
+            }
+            return (void*) NULL;
+        }
+        return (void *)mraa_gpio_init(pin);
+    }
+    else if(strncmp(type, "I2C",3) == 0) {
+        if(raw)
+        {
+            pin = mraa_init_io_helper(&pStr, &success, delim);
+            if(success) {
+                return (void*) mraa_i2c_init_raw(pin);
+            } else {
+                return (void*) NULL;
+            }
+        }
+        return (void *) mraa_i2c_init(pin);
+    }
+    else if(strncmp(type, "AIO",3) == 0) {
+        if(raw) {
+            return (void*) NULL;
+        }
+        return (void *) mraa_aio_init(pin);
+    }
+    else if(strncmp(type, "PWM",3) == 0) {
+        if(raw)
+        {
+            id = mraa_init_io_helper(&pStr, &success, delim);
+            if(!success) {
+                return (void*) NULL;
+            }
+            pin = mraa_init_io_helper(&pStr, &success, delim);
+            if(success) {
+                return (void*) mraa_pwm_init_raw(id,pin);
+            } else {
+                return (void*) NULL;
+            }
+        }
+        return (void*) mraa_pwm_init(pin);
+    }
+    else if(strncmp(type, "SPI",3) == 0) {
+        if(raw)
+        {
+            id = mraa_init_io_helper(&pStr, &success, delim);
+            if(!success) {
+                return (void*) NULL;
+            }
+            pin = mraa_init_io_helper(&pStr, &success, delim);
+            if(success) {
+                return (void*) mraa_spi_init_raw(id,pin);
+            } else {
+                return (void*) NULL;
+            }
+        }
+        return (void*) mraa_spi_init(pin);
+    }
+    else if(strncmp(type, "UART",4) == 0) {
+        if(raw) {
+            return (void*) mraa_uart_init_raw(pStr);
+        }
+        return (void*) mraa_uart_init(pin);
+    }
+    else {
+        return (void*) NULL;
+    }
+}

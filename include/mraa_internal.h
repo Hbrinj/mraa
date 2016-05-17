@@ -149,6 +149,33 @@ uint32_t mraa_add_from_lockfile(const char* imraa_lock_file);
  */
 mraa_result_t imraa_init();
 #endif
+/**
+ * Convert a given string to uppercase
+ *
+ * @param string to convert to uppercase
+ */
+void mraa_to_upper(char* string);
+
+/**
+ * Safe conversion of string to unsigned long
+ *
+ * @param string to convert to unsigned long
+ * @param success indicator
+ *
+ * @return the unsigned long or 0
+ */
+unsigned int mraa_atoi(char* string, int* success);
+
+/**
+ * Helper to  generate and converte a token to unsigned int
+ *
+ * @param pointer to a pointer to the rest of the description
+ * @param success indicator
+ * @param delimiter to use
+ *
+ * @return The result of calling mraa_atoi
+ */
+unsigned int mraa_init_io_helper(char** string, int* success, const char* delim);
 
 #ifdef __cplusplus
 }

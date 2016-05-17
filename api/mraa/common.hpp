@@ -309,4 +309,17 @@ removeSubplatform(Platform subplatformtype)
     return (Result) mraa_remove_subplatform((mraa_platform_t) subplatformtype);
 }
 
+/**
+ * Create io using a string
+ *
+ * @param the io description
+ *
+ * @return void pointer to io or NULL
+ */
+inline void* 
+initIo(std::string desc)
+{
+    return (void*) mraa_init_io(desc.c_str());
+}
+
 }
