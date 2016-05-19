@@ -316,10 +316,11 @@ removeSubplatform(Platform subplatformtype)
  *
  * @return void pointer to io or NULL
  */
-inline void* 
+template <class T>
+inline T* 
 initIo(std::string desc)
 {
-    return (void*) mraa_init_io(desc.c_str());
+    return new T(mraa_init_io(desc.c_str()));
 }
 
 }
